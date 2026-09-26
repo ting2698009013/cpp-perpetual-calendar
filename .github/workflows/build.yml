@@ -8,8 +8,8 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: microsoft/setup-msbuild@v2
+      - uses: actions/checkout@v7
+      - uses: microsoft/setup-msbuild@v3
       - name: Build
         run: msbuild Project2.sln /m /p:Configuration=Release /p:Platform=x64
       - name: Self-test
