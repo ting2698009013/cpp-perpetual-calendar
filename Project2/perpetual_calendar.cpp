@@ -6,6 +6,7 @@
 #include <iostream>
 #include <windows.h>
 #include <string>
+#include <cstring>
 
 constexpr int MIN_CALENDAR_YEAR = 1900;
 constexpr int MAX_CALENDAR_YEAR = 2025;
@@ -270,38 +271,30 @@ void solarToLunarOutput(int solarYear, int solarMonth, int solarDay) {
 int emonth[12] = { 31,28,31,30,31,30,31,31,30,31,30,31 };//储存公历月份的数组
 std::string week[] = { "星期六","星期日","星期一","星期二","星期三","星期四","星期五" };//输出对应星期的字符数组
 pdate date(int dif) {//根据天数差返回具体日期的函数
-    pdate result;
-    result.year = (dif / 365);
-    result.day = (dif % 365);
-    result.month = 1;
-    for (int i = 1900;i < result.year + 1900;i++) {
-        if ((i % 4 == 0 && i % 100 != 0) || i % 400 == 0) {
-            result.day--;
-        }
+    // daysum() uses 1900-01-01 as day 1.
+    if (dif < 1) {
+        return { 0, 1, 1 };
     }
-    if ((result.year % 4 == 0 && result.year % 100 != 0) || result.year % 400 == 0) {
-        emonth[1] = 29;
+
+    int year = 1900;
+    while (dif > 365 + ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)) {
+        dif -= 365 + ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0);
+        year++;
     }
-    for (int i = 0;i < 12;i++) {
-        if (result.day > emonth[i]) {
-            result.month++;
-            result.day -= emonth[i];
-            //cout<<result.day<<endl;
-        }
-        else break;
+
+    int month = 1;
+    while (dif > getSolarMonthDays(year, month)) {
+        dif -= getSolarMonthDays(year, month);
+        month++;
     }
-    return result;
+
+    return { year - 1900, month, dif };
 }
 bool isright(int year, int month, int day) {//判断输入的公历日期是否合法的函数
-    if (year >= 1840 && year <= 2100) {
-        if (month >= 1 && month <= 12) {
-            if (day >= 0 && day <= emonth[month - 1])
-                return 1;
-            else return 0;
-        }
-        else return 0;
+    if (year < 1900 || year > 2100 || month < 1 || month > 12) {
+        return false;
     }
-    else return 0;
+    return day >= 1 && day <= getSolarMonthDays(year, month);
 }
 int daysum(int year, int month, int day) {//计算公历天数和的函数
     int sum = 0;
@@ -314,7 +307,9 @@ int daysum(int year, int month, int day) {//计算公历天数和的函数
     if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
         emonth[1] = 29;
     }
-    else emonth[1] = 28;
+    else {
+        emonth[1] = 28;
+    }
     for (int i = 0;i < month - 1;i++) {
         sum += emonth[i];
     }
@@ -498,9 +493,6 @@ void calenderOutPut(int year, int month, int day)//月历显示函数
         printf("请输入1900—2025年之间的有效年月。\n");
         return;
     }
-    if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
-        emonth[1] = 29;
-    }
     int weekday = get_weekday(year, month, 1);
     printf("\t\t\t\t\t\t%d月 %d年\n", month, year);
     printf("一\t\t二\t\t三\t\t四\t\t五\t\t六\t\t日\n");
@@ -516,7 +508,7 @@ void calenderOutPut(int year, int month, int day)//月历显示函数
         }
     }
     // 填充农历日期结构体到calendar数组
-    for (int i = 1; i <= emonth[month - 1]; i++) {
+    for (int i = 1; i <= getSolarMonthDays(year, month); i++) {
         calendar[row][col] = solarToLunarDay(year, month, i);
         char term[10];
         if (JudgeSolarTerm(year, month, i, term)[0] != '\0')
@@ -956,78 +948,103 @@ void page8() {
 }
 // 主菜单函数
 void mainMenu(SYSTEMTIME curtime, int csum, int cyear, int cmonth, int cday) {
-    int choice;
-    system("cls");  // 显示菜单前先清屏
-    printf("\t\t\t万年历\n");
-    printf("\t\tTime : %hu年%hu月%hu日 %2hu:%2hu \n", curtime.wYear, curtime.wMonth, curtime.wDay, curtime.wHour, curtime.wMinute);
-    printf("1,查询农历\n");
-    printf("2,查询公历\n");
-    printf("3,显示月历\n");
-    printf("4,查询某天距今天的天数\n");
-    printf("5,查询距今天相应天数的日期\n");
-    printf("6,查询任意两天之间的天数差\n");
-    printf("7,显示二十四节气\n");
-    printf("8,显示节日\n");
-    printf("0，退出万年历程序\n");
-    printf("请输入你的选择：\n");
+    while (true) {
+        int choice;
+        system("cls");  // 显示菜单前先清屏
+        printf("\t\t\t万年历\n");
+        printf("\t\tTime : %hu年%hu月%hu日 %2hu:%2hu \n", curtime.wYear, curtime.wMonth, curtime.wDay, curtime.wHour, curtime.wMinute);
+        printf("1,查询农历\n");
+        printf("2,查询公历\n");
+        printf("3,显示月历\n");
+        printf("4,查询某天距今天的天数\n");
+        printf("5,查询距今天相应天数的日期\n");
+        printf("6,查询任意两天之间的天数差\n");
+        printf("7,显示二十四节气\n");
+        printf("8,显示节日\n");
+        printf("0，退出万年历程序\n");
+        printf("请输入你的选择：\n");
 
-    // 安全读取整数输入
-    if (scanf("%d", &choice) != 1) {
-        // 处理非整数输入
-        while (getchar() != '\n'); // 清空输入缓冲区
-        choice = -1; // 设置为无效值
-    }
-    else {
-        // 清除scanf后残留的换行符
-        while (getchar() != '\n');
-    }
+        // 安全读取整数输入
+        if (scanf("%d", &choice) != 1) {
+            while (getchar() != '\n');
+            choice = -1;
+        }
+        else {
+            while (getchar() != '\n');
+        }
 
-    switch (choice) {
-    case 1:
-        page1();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 2:
-        page2();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-
-        break;
-    case 3:
-        page3();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 4:
-        page4(csum, cyear, cmonth, cday);
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 5:
-        page5(csum, cyear, cmonth, cday);
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 6:
-        page6();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 7:
-        page7();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 8:
-        page8();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
-    case 0:
-        printf("程序退出\n");
-        break;
-    default:
-        printf("无效的选择，请按任意键继续...");
-        _getch();
-        mainMenu(curtime, csum, cyear, cmonth, cday);
-        break;
+        switch (choice) {
+        case 1:
+            page1();
+            break;
+        case 2:
+            page2();
+            break;
+        case 3:
+            page3();
+            break;
+        case 4:
+            page4(csum, cyear, cmonth, cday);
+            break;
+        case 5:
+            page5(csum, cyear, cmonth, cday);
+            break;
+        case 6:
+            page6();
+            break;
+        case 7:
+            page7();
+            break;
+        case 8:
+            page8();
+            break;
+        case 0:
+            printf("程序退出\n");
+            return;
+        default:
+            printf("无效的选择，请按任意键继续...");
+            _getch();
+            break;
+        }
     }
 }
 
-int main() {
+bool runSelfTests() {
+    if (!isright(2024, 2, 29) || isright(2023, 2, 29) || isright(2024, 1, 0)) {
+        return false;
+    }
+
+    for (const pdate expected : { pdate{0, 1, 1}, pdate{100, 2, 29}, pdate{124, 12, 31} }) {
+        const int year = expected.year + 1900;
+        const pdate actual = date(daysum(year, expected.month, expected.day));
+        if (actual.year != expected.year || actual.month != expected.month || actual.day != expected.day) {
+            return false;
+        }
+    }
+
+    int lunarYear = 0;
+    int lunarMonth = 0;
+    int lunarDay = 0;
+    int isLeapMonth = 0;
+    if (!solarToLunar(2024, 2, 10, &lunarYear, &lunarMonth, &lunarDay, &isLeapMonth)) {
+        return false;
+    }
+    return lunarYear == 2024 && lunarMonth == 1 && lunarDay == 1 && isLeapMonth == 0;
+}
+
+int main(int argc, char* argv[]) {
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+
+    if (argc == 2 && strcmp(argv[1], "--self-test") == 0) {
+        if (!runSelfTests()) {
+            fprintf(stderr, "Self-test failed.\n");
+            return 1;
+        }
+        printf("All calendar self-tests passed.\n");
+        return 0;
+    }
+
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     SetConsoleTextAttribute(hConsole,
         FOREGROUND_RED |
